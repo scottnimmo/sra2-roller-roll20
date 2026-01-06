@@ -1,0 +1,93 @@
+on("chat:message", function(msg) {
+    // Only trigger if the message starts with !sra
+    if(msg.type === "api" && msg.content.indexOf("!sra") === 0) {
+        let args = msg.content.split(/\s+/);
+        
+        // Identify the sender and the raw command
+        let sender = msg.who;
+        let commandSent = msg.content;
+
+        // Parse inputs: !sra [pool] [risk] [mode]
+        let pool = parseInt(args[1]) || 1;
+        let risk = parseInt(args[2]) || 0;
+        let modeArg = (args[3] || "n").toLowerCase();
+
+        // Threshold and Header Logic
+        let threshold = 5;
+        let modeName = "NORMAL";
+        if (modeArg === "a") { threshold = 4; modeName = "ADVANTAGE"; }
+        else if (modeArg === "d") { threshold = 6; modeName = "DISADVANTAGE"; }
+
+        let actualRisk = Math.min(risk, pool);
+        let normalCount = pool - actualRisk;
+        
+        let totalHits = 0;
+        let riskOnes = 0;
+        let diceResults = [];
+
+        // 1. Roll Risk Dice first (BOLD)
+        for(let i=0; i < actualRisk; i++) {
+            let r = randomInteger(6);
+            let color = "white";
+            if (r >= threshold) { 
+                totalHits += 2; 
+                color = "#5cb85c"; // Green Hit
+            } else if (r === 1) { 
+                riskOnes++; 
+                color = "#d9534f"; // RED for Risk 1s
+            }
+            diceResults.push(`<b style="color:${color}">${r}</b>`);
+        }
+
+        // 2. Roll Normal Dice (STANDARD)
+        for(let j=0; j < normalCount; j++) {
+            let r = randomInteger(6);
+            let color = "white";
+            if (r >= threshold) { 
+                totalHits += 1; 
+                color = "#5cb85c"; // Green Hit
+            }
+            diceResults.push(`<span style="color:${color}">${r}</span>`);
+        }
+
+        // Difficulty Tier Logic
+        let diffText = "";
+        if (totalHits >= 8) diffText = "Extreme";
+        else if (totalHits >= 6) diffText = "Hard";
+        else if (totalHits >= 4) diffText = "Difficult";
+        else if (totalHits >= 3) diffText = "Average";
+        else if (totalHits >= 2) diffText = "Easy";
+
+        // Glitch Logic (Risk 1s only)
+        let glitchMsg = "";
+        let borderColor = "#333";
+        if(riskOnes === 1) { glitchMsg = "⚠️ MINOR GLITCH"; borderColor = "#f1e05a"; }
+        else if(riskOnes === 2) { glitchMsg = "⚠️ MAJOR GLITCH"; borderColor = "#ff4444"; }
+        else if(riskOnes >= 3) { glitchMsg = "🚨 DISASTER!"; borderColor = "#ff0000"; }
+
+        // Construct HTML Output
+        let output = `<div style="background:#1a1a1a; border:3px solid ${borderColor}; color:#e0e0e0; font-family: 'Courier New', monospace; padding:0;">` +
+                     `<div style="background:#ffcc00; color:black; font-weight:bold; padding:5px; font-size:11px; text-transform:uppercase;">` +
+                     `DICE ${pool}, RISK: ${actualRisk} // ${modeName}</div>` +
+                     `<div style="padding:10px;">` +
+                     `Results: ${diceResults.join(', ')}<br>` +
+                     `<div style="margin-top:5px; font-size:1.2em;">Total Hits: <b style="color:#ffcc00;">${totalHits}</b></div>`;
+
+        // Difficulty Box
+        if (diffText !== "") {
+            output += `<div style="margin-top:10px; padding:5px; background:#2d572c; color:white; font-weight:bold; text-align:center; border:1px solid #5cb85c;">` +
+                      `Difficulty Passed: ${diffText}</div>`;
+        }
+        
+        // Glitch Box
+        if(glitchMsg !== "") {
+            output += `<div style="margin-top:5px; padding:5px; background:#400; color:white; font-weight:bold; text-align:center; border:1px solid red;">` +
+                      `${glitchMsg}</div>`;
+        }
+        
+        output += `</div></div>`;
+
+        // The first argument here determines the text shown above the box in chat
+        sendChat(`${sender} posted "${commandSent}"`, output);
+    }
+});
